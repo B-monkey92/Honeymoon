@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Honeymoon 날씨</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    /* 전체 레이아웃 */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      padding: 20px 16px 40px;
+      line-height: 1.5;
+      background: #f5f5f7;
+      color: #222;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 1.8rem;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 16px;
+    }
+
+    #weather-container {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* 도시 카드 */
+    .city-box {
+      border: 1px solid #e6e6e6;
+      border-radius: 14px;
+      padding: 16px 18px;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .city-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    /* 하루 정보 한 줄 */
+    .day-row {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+    }
+
+    .icon {
+      width: 36px;
+      height: 36px;
+      background: #f3f3f3;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 22px;
+      margin-right: 10px;
+      flex-shrink: 0;
+    }
+
+    .date-label {
+      font-weight: 600;
+      font-size: 0.96rem;
+    }
+
+    .weekday {
+      color: #777;
+      font-weight: 500;
+      font-size: 0.92rem;
+      margin-left: 2px;
+    }
+
+    .weather-desc {
+      color: #444;
+      font-size: 0.92rem;
+      margin-left: 4px;
+    }
+
+    .temp-line {
+      font-size: 0.9rem;
+      margin-top: 2px;
+    }
+
+    .temp-min {
+      color: #0066ff;  /* 최저 = 파란색 */
+      font-weight: 600;
+    }
+
+    .temp-max {
+      color: #ff3333;  /* 최고 = 빨간색 */
+      font-weight: 600;
+    }
+
+    .precip {
+      font-size: 0.83rem;
+      color: #666;
+      margin-left: 4px;
+    }
+
+    .loading,
+    .error {
+      font-size: 0.9rem;
+      color: #777;
+      margin-top: 4px;
+    }
+
+    /* 아이폰 작은 화면 대응 */
+    @media (max-width: 430px) {
+      body {
+        padding: 16px 12px 32px;
+      }
+      .city-box {
+        padding: 14px 14px;
+        border-radius: 12px;
+      }
+      h1 {
+        font-size: 1.6rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Honeymoon 날씨</h1>
+  <div class="subtitle">2025년 일정 · 현지 시간 기준 일별 예보</div>
+
+  <div id="weather-container">
+    <!-- 날짜 형식: YYYY-MM-DD,YYYY-MM-DD (출발일, 도착일) -->
+
+    <div class="city-box"
+         data-city="Lisbon"
+         data-lat="38.72"
+         data-lon="-9.14"
+         data-range="2025-11-23,2025-11-25">
+      <div class="city-title">🇵🇹 Lisbon (11/23 ~ 11/25)</div>
+      <div class="days"></div>
+    </div>
+
+    <div class="city-box"
+         data-city="Porto"
+         data-lat="41.15"
+         data-lon="-8.63"
+         data-range="2025-11-25,2025-11-28">
+      <div class="city-title">🇵🇹 Porto (11/25 ~ 11/28)</div>
+      <div class="days"></div>
+    </div>
+
+    <div class="city-box"
+         data-city="Barcelona"
+         data-lat="41.39"
+         data-lon="2.17"
+         data-range="2025-11-28,2025-12-01">
+      <div class="city-title">🇪🇸 Barcelona (11/28 ~ 12/01)</div>
+      <div class="days"></div>
+    </div>
+
+    <div class="city-box"
+         data-city="Seville"
+         data-lat="37.39"
+         data-lon="-5.98"
+         data-range="2025-12-01,2025-12-03">
+      <div class="city-title">🇪🇸 Sevilla (12/01 ~ 12/03)</div>
+      <div class="days"></div>
+    </div>
+
+    <div class="city-box"
+         data-city="Madrid"
+         data-lat="40.42"
+         data-lon="-3.70"
+         data-range="2025-12-03,2025-12-04">
+      <div class="city-title">🇪🇸 Madrid (12/03 ~ 12/04)</div>
+      <div class="days"></div>
+    </div>
+  </div>
+
+  <script>
+    // 1) Open-Meteo에서 16일치 일간 예보 불러오기 (각 도시 현지 시간 기준)
+    async function getDailyForecast(lat, lon) {
+      const params = new URLSearchParams({
+        latitude: lat,
+        longitude: lon,
+        timezone: "auto", // 도시 현지 시간 기준
+        forecast_days: "16",
+        daily: [
+          "weathercode",
+          "temperature_2m_max",
+          "temperature_2m_min",
+          "precipitation_probability_max"
+        ].join(",")
+      });
+
+      const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP 오류: " + res.status);
+      return res.json();
+    }
+
+    // 2) 날짜 문자열 도우미 (로컬 타임존 기준, 하루씩 밀리는 문제 방지)
+    function formatLocalDateString(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`; // "2025-11-23"
+    }
+
+    // "2025-11-23,2025-11-25" → ["2025-11-23","2025-11-24","2025-11-25"]
+    function getDateRangeArray(startStr, endStr) {
+      const result = [];
+      const start = new Date(startStr + "T00:00:00");
+      const end = new Date(endStr + "T00:00:00");
+
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        result.push(formatLocalDateString(d));
+      }
+      return result;
+    }
+
+    // "MM/DD (요일)" 라벨
+    function formatDateParts(dateStr) {
+      const d = new Date(dateStr + "T00:00:00");
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
+      const weekday = weekdayNames[d.getDay()];
+      return { month, day, weekday };
+    }
+
+    // 3) weathercode → 이모지 / 한글 설명
+    function weatherCodeToEmoji(code) {
+      if (code === 0) return "☀️";
+      if (code === 1 || code === 2) return "🌤️";
+      if (code === 3) return "☁️";
+      if (code === 45 || code === 48) return "🌫️";
+      if (code >= 51 && code <= 67) return "🌦️";
+      if (code >= 71 && code <= 77) return "❄️";
+      if (code >= 80 && code <= 82) return "🌧️";
+      if (code >= 85 && code <= 86) return "🌨️";
+      if (code >= 95 && code <= 99) return "⛈️";
+      return "🌈";
+    }
+
+    function weatherCodeToKorean(code) {
+      if (code === 0) return "맑음";
+      if (code === 1) return "대체로 맑음";
+      if (code === 2) return "부분적으로 흐림";
+      if (code === 3) return "흐림";
+      if (code === 45 || code === 48) return "안개";
+      if (code === 51 || code === 53 || code === 55) return "이슬비";
+      if (code === 56 || code === 57) return "어는 이슬비";
+      if (code === 61 || code === 63 || code === 65) return "비";
+      if (code === 66 || code === 67) return "어는 비";
+      if (code === 71 || code === 73 || code === 75) return "눈";
+      if (code === 77) return "싸락눈";
+      if (code === 80 || code === 81 || code === 82) return "소나기";
+      if (code === 85 || code === 86) return "소나기 눈";
+      if (code === 95) return "뇌우";
+      if (code === 96 || code === 99) return "뇌우(우박 동반)";
+      return "날씨 정보";
+    }
+
+    // 4) 한 도시 박스 렌더링
+    function renderCity(box, data) {
+      const daysDiv = box.querySelector(".days");
+      daysDiv.innerHTML = "";
+
+      const [startStr, endStr] = box.dataset.range.split(",");
+      const targetDates = getDateRangeArray(startStr, endStr);
+
+      const times = data.daily.time; // 이미 도시 현지 날짜 문자열
+      const maxTemps = data.daily.temperature_2m_max;
+      const minTemps = data.daily.temperature_2m_min;
+      const codes = data.daily.weathercode;
+      const pops = data.daily.precipitation_probability_max || [];
+
+      targetDates.forEach(date => {
+        const row = document.createElement("div");
+        row.className = "day-row";
+
+        const idx = times.indexOf(date);
+
+        if (idx !== -1) {
+          const code = codes[idx];
+          const emoji = weatherCodeToEmoji(code);
+          const maxT = Math.round(maxTemps[idx]);
+          const minT = Math.round(minTemps[idx]);
+          const pop = pops[idx] ?? null;
+
+          const { month, day, weekday } = formatDateParts(date);
+
+          row.innerHTML = `
+            <div class="icon">${emoji}</div>
+            <div>
+              <div>
+                <span class="date-label">${month}/${day}</span>
+                <span class="weekday">(${weekday})</span>
+                <span class="weather-desc">· ${weatherCodeToKorean(code)}</span>
+              </div>
+              <div class="temp-line">
+                최저 <span class="temp-min">${minT}°</span>
+                /
+                최고 <span class="temp-max">${maxT}°C</span>
+                ${pop !== null ? `<span class="precip">· 강수확률 ${pop}%</span>` : ""}
+              </div>
+            </div>
+          `;
+        } else {
+          const { month, day, weekday } = formatDateParts(date);
+          row.innerHTML = `
+            <div class="icon">❔</div>
+            <div>
+              <div>
+                <span class="date-label">${month}/${day}</span>
+                <span class="weekday">(${weekday})</span>
+              </div>
+              <div class="temp-line">이 날짜에 대한 예보 데이터가 아직 없습니다.</div>
+            </div>
+          `;
+        }
+
+        daysDiv.appendChild(row);
+      });
+    }
+
+    // 5) 도시 하나 처리
+    async function processCity(box) {
+      const lat = box.dataset.lat;
+      const lon = box.dataset.lon;
+      const daysDiv = box.querySelector(".days");
+      daysDiv.innerHTML = '<div class="loading">불러오는 중...</div>';
+
+      try {
+        const data = await getDailyForecast(lat, lon);
+        if (!data.daily || !data.daily.time) {
+          daysDiv.innerHTML = '<div class="error">일일 예보 데이터가 없습니다.</div>';
+          return;
+        }
+        renderCity(box, data);
+      } catch (err) {
+        console.error(err);
+        daysDiv.innerHTML = '<div class="error">날씨 정보를 불러오지 못했습니다.</div>';
+      }
+    }
+
+    // 6) 페이지 로드 후 전체 도시 처리
+    document.addEventListener("DOMContentLoaded", () => {
+      document.querySelectorAll(".city-box").forEach(processCity);
+    });
+  </script>
+</body>
+</html>
